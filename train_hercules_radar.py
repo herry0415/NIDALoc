@@ -1,6 +1,7 @@
 # pylint: disable=no-member
 import argparse
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = '1' #todo
 import sys
 import numpy as np
 import random
@@ -26,7 +27,7 @@ from torchstat import stat
 from thop import profile
 from ptflops import get_model_complexity_info
 
-
+SEQUENCE_NAME = 'Sports' #['Library', 'Mountain', 'Sports']#todo
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 cudnn.enabled = True
@@ -41,7 +42,7 @@ parser.add_argument('--batch_size', type=int, default=32,
 parser.add_argument('--val_batch_size', type=int, default=32,
                     help='Batch Size during validating [default: 80]')
 parser.add_argument('--max_epoch', type=int, default=100,
-                    help='Epoch to run [default: 100]')
+                    help='Epoch to run [default: 100]') #todo 
 parser.add_argument('--init_learning_rate', type=float, default=0.001, 
                     help='Initial learning rate [default: 0.001]')
 parser.add_argument("--decay_step", type=float, default=500,
@@ -50,12 +51,12 @@ parser.add_argument('--optimizer', default='adam',
                     help='adam or momentum [default: adam]')
 parser.add_argument('--seed', type=int, default=20, metavar='S',
                     help='random seed (default: 20)')
-parser.add_argument('--log_dir', default='NIDALoc/',
-                    help='Log dir [default: log]')
-parser.add_argument('--dataset_folder', default='/home/data',
-                    help='Our Dataset Folder')
-parser.add_argument('--dataset', default='NCLT', 
-                    help='Oxford or NCLT')
+parser.add_argument('--log_dir', default=f'NIDALoc_{SEQUENCE_NAME}_Radar/',
+                    help='Log dir [default: log]')#todo
+parser.add_argument('--dataset_folder', default='/data/drj/HeRCULES',
+                    help='Our Dataset Folder')#todo
+parser.add_argument('--dataset', default='Hercules', 
+                    help='Oxford or NCLT')#todo
 parser.add_argument('--num_workers', type=int, default=4, 
                     help='num workers for dataloader, default:4')
 parser.add_argument('--num_points', type=int, default=4096,
@@ -69,8 +70,8 @@ parser.add_argument('--num_loc', type=int, default=10,
                     help='position classification, default: 10')
 parser.add_argument('--num_ang', type=int, default=8, 
                     help='orientation classification, default: 10')
-parser.add_argument('--skip', type=int, default=10, 
-                    help='Number of frames to skip')
+parser.add_argument('--skip', type=int, default=2, 
+                    help='Number of frames to skip') #todo
 parser.add_argument('--steps', type=int, default=5, 
                     help='Number of frames to return on every call')
 parser.add_argument('--normalize', action='store_true', default=False,
@@ -114,6 +115,9 @@ if FLAGS.normalize:
         stats_file = osp.join(FLAGS.dataset_folder, FLAGS.dataset, 'stats.txt')
     elif FLAGS.dataset == 'NCLT':
         stats_file = osp.join(FLAGS.dataset_folder, FLAGS.dataset, 'stats.txt')
+    elif FLAGS.dataset == 'Hercules':
+        sequence_name = SEQUENCE_NAME #todo change 后面要改为radar
+        stats_file = os.path.join(FLAGS.dataset_folder, sequence_name, sequence_name + '_radar' + '_pose_stats.txt')
     else:
         raise ValueError("dataset error!")
     stats         = np.loadtxt(stats_file, dtype=np.float32)
@@ -127,16 +131,19 @@ train_kwargs = dict(data_path    = FLAGS.dataset_folder,
                     train        = True, 
                     valid        = False, 
                     num_loc      = FLAGS.num_loc, 
-                    num_ang      = FLAGS.num_ang)
+                    num_ang      = FLAGS.num_ang)#todo 
 valid_kwargs = dict(data_path    = FLAGS.dataset_folder, 
                     augmentation = valid_augmentations, 
                     num_points   = FLAGS.num_points, 
                     train        = False, 
                     valid        = True, 
                     num_loc      = FLAGS.num_loc, 
-                    num_ang      = FLAGS.num_ang)
-pose_stats_file = os.path.join(FLAGS.dataset_folder, FLAGS.dataset, 'pose_stats.txt')
-pose_m, pose_s  = np.loadtxt(pose_stats_file) 
+                    num_ang      = FLAGS.num_ang)#todo 
+
+sequence_name = SEQUENCE_NAME #todo change
+pose_stats_file = os.path.join(FLAGS.dataset_folder, sequence_name, sequence_name +'_radar' + '_pose_stats.txt')
+pose_m, pose_s = np.loadtxt(pose_stats_file)
+
 Plus_kwargs  = dict(dataset       = FLAGS.dataset, 
                     skip          = FLAGS.skip, 
                     steps         = FLAGS.steps, 
@@ -144,7 +151,7 @@ Plus_kwargs  = dict(dataset       = FLAGS.dataset,
                     real          = FLAGS.real)
 train_kwargs = dict(**train_kwargs, **Plus_kwargs)
 valid_kwargs = dict(**valid_kwargs, **Plus_kwargs)
-train_set    = MF(**train_kwargs)
+train_set    = MF(**train_kwargs) #todo 在MF里面 进行更改
 val_set      = MF(**valid_kwargs)
 train_loader = DataLoader(train_set, 
                         batch_size  = FLAGS.batch_size, 
@@ -278,7 +285,7 @@ def valid_one_epoch(model, val_loader, val_writer, device):
         gt_rotation[start_idx:end_idx, :]    = np.asarray([qexp(q) for q in val_pose[:, 3:].numpy()]) 
         gt_grid_cell[start_idx:end_idx, :]   = val_grid.numpy() * pose_s[:2] + pose_m[:2]
         gt_hd                                = val_hd.to(device, dtype=torch.float32)  
-        pcs_tensor                           = val_data.to(device)                  
+        pcs_tensor                           = val_data.to(device, dtype=torch.float32)  #todo device float32        
         s                                    = pcs_tensor.size()  # B, T, N, 3
         pcs_tensor                           = pcs_tensor.view(-1, *s[2:])  # [B*T, N, 3]
         

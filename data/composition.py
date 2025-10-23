@@ -6,6 +6,9 @@ import sys
 sys.path.insert(0, '../')
 from .NCLT_datagenerator import NCLT
 from .OxfordVelodyne_datagenerator import RobotCar
+from .hercules_radar import Hercules #todo change
+# from .hercules_lidar import Hercules #todo change lidar/radar
+
 from utils.pose_util import calc_vos_simple, calc_vos_safe
 
 
@@ -32,6 +35,10 @@ class MF(data.Dataset):
             if self.include_vos and self.real:
                 self.gt_dset = RobotCar(*args, skip_pcs=True, real=False, **kwargs)
             self.threshold = 0.02
+        elif dataset == 'Hercules':  #todo change lidar/radar
+            self.dset = Hercules(*args, real=self.real, **kwargs)
+            if self.include_vos and self.real:
+                self.gt_dset = Hercules(*args, skip_pcs=True, real=False, **kwargs)
         else:
             raise NotImplementedError('{:s} dataset is not implemented!')
 
@@ -46,7 +53,8 @@ class MF(data.Dataset):
         offsets -= offsets[len(offsets) // 2]
         if self.no_duplicates:
             offsets += np.ceil(self.steps/2 * self.skip)
-        offsets = offsets.astype(np.int)
+        # offsets = offsets.astype(np.int)
+        offsets = offsets.astype(int) 
         idx = index + offsets
         idx = np.minimum(np.maximum(idx, 0), len(self.dset)-1)
         assert np.all(idx >= 0), '{:d}'.format(index)

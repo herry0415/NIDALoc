@@ -10,16 +10,16 @@ from data.robotcar_sdk.python.transform import build_se3_transform
 from data.robotcar_sdk.python.velodyne import load_velodyne_binary
 from torch.utils import data
 from utils.pose_util import process_poses, ds_pc, filter_overflow_ts
-from utils.pose_util import grid_position, hd_orientation
+from utils.pose_util import grid_position, hd_orientation   #todo 多了几个引入的函数
 from copy import deepcopy
-
+#todo  修改ME部分 加载数据集
 
 BASE_DIR = osp.dirname(osp.abspath(__file__))
 
 
 class RobotCar(data.Dataset):
     def __init__(self, data_path, train=True, valid=False, augmentation=[], num_points=4096, real=False,
-                 vo_lib='stereo', num_loc=10, num_ang=10):
+                 vo_lib='stereo', num_loc=10, num_ang=10):  #todo 参数多了两个
         # directories
         lidar = 'velodyne_left'
         data_dir = osp.join(data_path, 'Oxford')
@@ -133,29 +133,30 @@ class RobotCar(data.Dataset):
 
         self.augmentation = augmentation
         self.num_points   = num_points
-        self.num_loc = num_loc
-        self.num_ang = num_ang
+        self.num_loc = num_loc   #todo 新增参数
+        self.num_ang = num_ang   #todo 新增参数
         
         if train:
             print("train data num:" + str(len(self.poses)))
-            print("train grid num:" + str(self.num_loc * self.num_loc))
+            print("train grid num:" + str(self.num_loc * self.num_loc))#todo
         else:
             print("valid data num:" + str(len(self.poses)))
-            print("valid grid num:" + str(self.num_loc * self.num_loc))
+            print("valid grid num:" + str(self.num_loc * self.num_loc))#todo
 
     def __getitem__(self, index):             
         scan_path = self.pcs[index]   
         ptcld     = load_velodyne_binary(scan_path)  # (4, N)
         scan      = ptcld[:3].transpose()  # (N, 3)
         scan      = ds_pc(scan, self.num_points)
+
         for a in self.augmentation:
             scan  = a.apply(scan) 
             
         pose      = self.poses[index]  # (6,)  all-[156988, 6]
-        grid      = grid_position(pose, self.poses_max, self.poses_min, self.num_loc) # (2, )
-        hd        = hd_orientation(pose, self.num_ang)  # (1, )
+        grid      = grid_position(pose, self.poses_max, self.poses_min, self.num_loc) # (2, )  #Todo 新增
+        hd        = hd_orientation(pose, self.num_ang)  # (1, )  #todo 新增
 
-        return scan, pose, grid, hd
+        return scan, pose, grid, hd  #todo 新增
 
     def __len__(self):
         return len(self.poses)
