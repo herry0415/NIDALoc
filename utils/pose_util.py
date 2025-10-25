@@ -2,6 +2,7 @@ import numpy as np
 import math
 import torch
 import pandas as pd
+import scipy
 import transforms3d.quaternions as txq
 import transforms3d.euler as txe
 from os import path as osp
@@ -240,9 +241,10 @@ def process_poses(poses_in, mean_t, std_t, align_R, align_t, align_s):
         t = poses_out[i, :3] - align_t
         poses_out[i, :3] = align_s * np.dot(align_R, t[:, np.newaxis]).squeeze()
 
-    # normalize translation
+    # normalize translation 
     poses_out[:, :3] -= mean_t
     poses_out[:, :3] /= std_t
+    #todo 减均值  除以方差了  所以可能会有问题
 
     # max and min
     pose_max = np.max(poses_out[:, :2], axis=0)  # (2,)
@@ -403,3 +405,69 @@ def hd_orientation(pose, num_ang):
     #     class_orientation = 0
 
     return class_orientation
+
+
+from decimal import Decimal
+def filter_overflow_snail(filename, ts_raw):
+    # 读取 GNSS/INS 数据
+    pose_timestamps_str = np.loadtxt(filename, dtype=str, usecols=0)
+    pose_timestamps = np.array([Decimal(s) for s in pose_timestamps_str])
+
+    min_pose_timestamps = min(pose_timestamps)
+    max_pose_timestamps = max(pose_timestamps)
+    ts_filted = [t for t in ts_raw if min_pose_timestamps < t < max_pose_timestamps]
+    abandon_num = len(ts_raw) - len(ts_filted)
+    print('abandom %d pointclouds that exceed the range of %s' % (abandon_num, filename))
+    return ts_filted
+
+
+def interpolate_pose_snail(gt_filename, ts_raw):  # 插值函数
+    # gt_filename: GT对应文件名
+    # ts_raw: 滤波后的点云时间戳
+    ts_str = np.loadtxt(gt_filename, dtype=str, usecols=0)
+    ts_dec = np.array([Decimal(s) for s in ts_str])
+    ts = np.array([int(t * Decimal('1e9')) for t in ts_dec])
+    ts_raw = np.array([int(t * Decimal('1e9')) for t in ts_raw])
+    ground_truth = np.loadtxt(gt_filename)
+    ground_truth = ground_truth[np.logical_not(np.any(np.isnan(ground_truth), 1))]
+    interp = scipy.interpolate.interp1d(ts, ground_truth[:, 1:], kind='nearest', axis=0)
+    pose_gt = interp(ts_raw)
+
+    return pose_gt
+
+
+def poses_to_matrices_snale(pose_array):
+    """
+    将 pose 数组转换为齐次位姿矩阵
+    Args:
+        pose_array: (N, 7) [x, y, z, qx, qy, qz, qw]
+    Returns:
+        T_all: (N, 4, 4) 齐次位姿矩阵
+    """
+    # 拆分位置和四元数
+    xyz = pose_array[:, 0:3]   # (N, 3)
+    quat = pose_array[:, 3:]  # (N, 4) [qx, qy, qz, qw]
+
+    # 提取分量
+    qx, qy, qz, qw = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
+
+    # 归一化（避免数值误差）
+    norm = np.linalg.norm(quat, axis=1, keepdims=True)
+    qx, qy, qz, qw = (quat / norm).T  
+
+    # 四元数 → 旋转矩阵，批量公式
+    R = np.stack([
+        1 - 2*(qy**2 + qz**2),  2*(qx*qy - qz*qw),  2*(qx*qz + qy*qw),
+        2*(qx*qy + qz*qw),  1 - 2*(qx**2 + qz**2),  2*(qy*qz - qx*qw),
+        2*(qx*qz - qy*qw),  2*(qy*qz + qx*qw),  1 - 2*(qx**2 + qy**2)
+    ], axis=1).reshape(-1, 3, 3)   # (N, 3, 3)
+
+    # 平移向量
+    t = xyz.reshape(-1, 3, 1)  # (N, 3, 1)
+
+    # 拼成 4×4
+    T_all = np.tile(np.eye(4), (pose_array.shape[0], 1, 1))  # (N, 4, 4)
+    T_all[:, :3, :3] = R
+    T_all[:, :3, 3:] = t
+
+    return T_all

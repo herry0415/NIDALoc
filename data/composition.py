@@ -7,6 +7,8 @@ sys.path.insert(0, '../')
 from .NCLT_datagenerator import NCLT
 from .OxfordVelodyne_datagenerator import RobotCar
 from .hercules_radar import Hercules #todo change
+# from .snail_radar import Snail
+from .snail_lidar import Snail
 # from .hercules_lidar import Hercules #todo change lidar/radar
 
 from utils.pose_util import calc_vos_simple, calc_vos_safe
@@ -35,10 +37,16 @@ class MF(data.Dataset):
             if self.include_vos and self.real:
                 self.gt_dset = RobotCar(*args, skip_pcs=True, real=False, **kwargs)
             self.threshold = 0.02
-        elif dataset == 'Hercules':  #todo change lidar/radar
+        elif dataset == 'Hercules':  # todo change lidar/radar
             self.dset = Hercules(*args, real=self.real, **kwargs)
             if self.include_vos and self.real:
                 self.gt_dset = Hercules(*args, skip_pcs=True, real=False, **kwargs)
+
+        elif dataset == 'Snail':      # todo change lidar/radar
+            self.dset = Snail(*args, real=self.real, **kwargs)
+            if self.include_vos and self.real:
+                self.gt_dset = Snail(*args, skip_pcs=True, real=False, **kwargs)
+
         else:
             raise NotImplementedError('{:s} dataset is not implemented!')
 
